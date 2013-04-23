@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+       	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       	xmlns:tx="http://www.springframework.org/schema/tx"
+       	xmlns:context="http://www.springframework.org/schema/context"
+       	xmlns:jpa="http://www.springframework.org/schema/data/jpa"
+       	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+			http://www.springframework.org/schema/tx  http://www.springframework.org/schema/tx/spring-tx-3.2.xsd
+			http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.2.xsd
+			http://www.springframework.org/schema/data/jpa http://www.springframework.org/schema/data/jpa/spring-jpa-1.1.xsd"
+			default-lazy-init="true" >
+
+
+	<!-- Configuração da implementação de datasource do Oracle. A implementação 
+		provê um pool de conexões e é necessária para usar o recurso: "Fast Connection 
+		Failover". -->
+	<bean id="dataSource" class="oracle.jdbc.pool.OracleDataSource" destroy-method="close">
+		<property name="URL" value="${hibernate.connection.url}" />
+		<property name="user" value="${hibernate.connection.username}" />
+		<property name="password" value="${hibernate.connection.password}" />
+	   	<property name="connectionCachingEnabled" value="${connectionCachingEnabled}" />
+   		<property name="connectionProperties" value="{connectionProperties}" />
+   		<property name="connectionCacheProperties" value="{connectionCacheProperties}" />
+   		<property name="fastConnectionFailoverEnabled" value="${fastConnectionFailoverEnabled}"/>
+        <property name="ONSConfiguration" value="${ONSConfiguration}"/>
+	</bean>
+
+	<!-- Implementação do EntityManagerFactory, do JPA. O bean é criado com 
+		as configurações específicas do hibernate. -->
+	<bean id="entityManagerFactory" class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+		
+		<property name="persistenceUnitName" value="persistencia" />
+		<property name="jpaVendorAdapter">
+			<bean class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter" >
+				<property name="generateDdl" value="#{'${hibernate.hbm2ddl.auto}' != null and '${hibernate.hbm2ddl.auto}' != '' ? true : false}" />
+			</bean>
+		</property>
+		<property name="jpaProperties">
+			<props>
+				<!-- Classe que implementa o dialeto do banco de dados.-->
+				<prop key="hibernate.dialect">${hibernate.dialect}</prop>
+				
+				<!-- Habilita a exibição do sql's que são gerados pelo hibernate.-->
+				<prop key="hibernate.show_sql">${hibernate.show_sql}</prop>
+				
+				<!-- Formata a impressão do SQL no log (true ou false) -->
+                <prop key="hibernate.format_sql">${hibernate.format_sql}</prop>
+                
+                <!-- Imprime no log o HQL como comentário do SQL (true e false) -->
+                <prop key="hibernate.use_sql_comments">${hibernate.use_sql_comments}</prop>
+
+				<!-- Defini comportamento automático para validação, atualização
+				     ou criação da estrutura do banco de dados.-->
+				<prop key="hibernate.hbm2ddl.auto">${hibernate.hbm2ddl.auto}</prop>
+				
+				<!-- Habilita o carregamento de coleções que não estão presentes na sessão 
+					corrente do EntityManager. Seu uso não é recomentado. 
+					https://hibernate.atlassian.net/browse/HHH-7457 -->
+ 				<!-- <prop key="hibernate.enable_lazy_load_no_trans">true</prop> -->
+			</props>
+		</property>
+	</bean>
+
+
+
+	<!-- Resolve placeholders do spring como parâmetros de inicialização do 
+		ServletContext. (context-param do web.xml) -->
+	<bean
+		class="org.springframework.web.context.support.ServletContextPropertyPlaceholderConfigurer">
+		<!-- Se houver parâmetros com mesmo nome, a propriedade do ServletContext sobrescreve as demais. --> 
+		<property name="contextOverride" value="true" />
+		<property name="locations">
+			<list>
+				<value>classpath:hibernate-jpaPropertyMap.properties</value>
+			</list>
+		</property>
+	</bean>
+
+	<!-- Define a classe responsável pelo gerencialmente de transações JPA. -->
+	<bean id="transactionManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+		<property name="entityManagerFactory" ref="entityManagerFactory" />
+	</bean>
+
+	<!-- Create instance of transaction template for programmatic transaction 
+		manipulation -->
+	<bean id="transactionTemplate" class="org.springframework.transaction.support.TransactionTemplate">
+		<property name="transactionManager" ref="transactionManager"></property>
+	</bean>
+
+	<!-- Permitir que a configuração do comportamento transacional seja baseada 
+		em anotações (@Transactional). 
+		O atributo proxy-target-class deve ser "true", 
+		porque, caso contrário, ocorre um efeito colateral que impede a injeção dos 
+		controles via autowire. Isto parece estar relacionado ao fato dos controles 
+		usarem a tag @Transactional. -->
+	<tx:annotation-driven transaction-manager="transactionManager" proxy-target-class="true"/>
+	
+	<!--*****************************************************************************-->
+
+	<!-- 
+	Possibilita a injeção de dependências de classes anotadas com @Component,
+	@Repository, @Service, @Controller em atributos cujos tipos são estas classes e
+	estão anotados com @Autowired, @Required ou @Qualifier 
+	-->
+	<context:component-scan base-package="synergia.lotrouting" />
+	
+	<!-- Defini o pacote onde estão implementados os DAOs. -->
+	<jpa:repositories base-package="synergia.lotrouting.modelo" />
+	
+</beans>
